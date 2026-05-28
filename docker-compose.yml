@@ -1,0 +1,74 @@
+networks:
+  dataexplorer_net:
+    driver: bridge
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+services:
+  # Instancia Backend 1
+  backend1:
+    build: ./backend
+    environment:
+      - INSTANCE_ID=1
+    networks:
+      - dataexplorer_net
+
+  # Instancia Backend 2
+  backend2:
+    build: ./backend
+    environment:
+      - INSTANCE_ID=2
+    networks:
+      - dataexplorer_net
+
+  # Instancia Backend 3
+  backend3:
+    build: ./backend
+    environment:
+      - INSTANCE_ID=3
+    networks:
+      - dataexplorer_net
+
+  # Proxy Inverso y Balanceador
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - backend1
+      - backend2
+      - backend3
+    networks:
+      - dataexplorer_net
+
+  # Servidor de Métricas
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    ports:
+      - "9090:9090"
+    networks:
+      - dataexplorer_net
+
+  # Visualización
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin # Cambiar en producción
+    depends_on:
+      - prometheus
+    networks:
+      - dataexplorer_net
